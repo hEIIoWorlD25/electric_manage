@@ -1,0 +1,249 @@
+<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Electricis Manager · Guía de instalación</title><style>body{font:17px/1.65 system-ui,sans-serif;background:#f3f6fa;color:#17333e;margin:0}main{max-width:940px;margin:40px auto;padding:48px;background:white;border-radius:18px}h1{font-size:42px;line-height:1.15;color:#075e69}h2{font-size:25px;border-top:1px solid #dce5ea;padding-top:24px;margin-top:36px}pre{background:#132e39;color:#e7f6f4;padding:18px;overflow:auto;border-radius:8px}code{font-size:14px}table{width:100%;border-collapse:collapse;font-size:15px}th,td{padding:12px;border:1px solid #dce5ea;text-align:left}th{background:#e9f4f3}a{color:#075e69;overflow-wrap:anywhere}strong{color:#075e69}@media(max-width:700px){main{margin:0;padding:20px}h1{font-size:32px}table{display:block;overflow:auto}}@media print{body{background:white}main{margin:0;padding:0}h2{break-after:avoid}pre{white-space:pre-wrap;color:black;background:#eee}tr{break-inside:avoid}}</style><main><h1 id="electricis-manager">Electricis Manager</h1>
+<h2 id="guia-de-instalacion-y-conexion-windows-version-070">Guía de instalación y conexión · Windows · versión 0.7.0</h2>
+<p>La instalación tiene tres partes: <strong>MySQL guarda los datos; la API procesa las solicitudes; Android muestra las pantallas</strong>. Deben estar funcionando MySQL y la API antes de iniciar sesión desde el teléfono. La computadora hará de servidor durante la demostración.</p>
+<h2 id="1-descomprimir-y-reconocer-los-archivos">1. Descomprimir y reconocer los archivos</h2>
+<p>Descarga el ZIP, pulsa botón derecho → Extraer todo. Coloca la carpeta resultante en <code>C:\Proyectos\ElectricisManager</code>. Si el descompresor crea dos carpetas con el mismo nombre, usa la que contiene <code>backend</code>, <code>android</code> y <code>database</code>.</p>
+<p>No ejecutes archivos dentro del ZIP. No copies archivos Kotlin de forma individual: Android Studio necesita abrir toda la carpeta <code>android</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Archivo o carpeta</th>
+<th>Para qué sirve</th>
+<th>Dónde se usa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>database/01_create_database.sql</td>
+<td>Crea base y usuario MySQL</td>
+<td>MySQL Workbench</td>
+</tr>
+<tr>
+<td>backend/.env.example</td>
+<td>Modelo de configuración</td>
+<td>Se copia como backend/.env</td>
+</tr>
+<tr>
+<td>backend/manage.py</td>
+<td>Crea tablas, usuarios y datos opcionales</td>
+<td>Terminal, dentro de backend</td>
+</tr>
+<tr>
+<td>backend/start_windows.bat</td>
+<td>Enciende la API local</td>
+<td>Doble clic</td>
+</tr>
+<tr>
+<td>android/settings.gradle.kts</td>
+<td>Identifica el proyecto Android</td>
+<td>Abrir carpeta android</td>
+</tr>
+<tr>
+<td>docs/VERIFICACION.md</td>
+<td>Pruebas realizadas y límites</td>
+<td>Editor de texto</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-instalar-los-programas">2. Instalar los programas</h2>
+<p>Instala <strong>MySQL Community Server 8.4 LTS</strong> y <strong>MySQL Workbench</strong> desde los sitios oficiales. Durante MySQL Configurator selecciona una instalación de desarrollo, puerto <code>3306</code> y servicio de Windows. Define y conserva la contraseña de <code>root</code>. Comprueba que el servicio queda iniciado. No es necesario habilitar acceso remoto al puerto 3306.</p>
+<ul>
+<li>MySQL Server: <a href="https://dev.mysql.com/downloads/mysql/">Descarga oficial</a> (elige la rama 8.4 LTS y Windows).</li>
+<li>Workbench: <a href="https://dev.mysql.com/downloads/workbench/">Descarga oficial</a></li>
+<li>Python 3.12: <a href="https://www.python.org/downloads/windows/">Descarga oficial</a> (instala Python Launcher y marca Add Python to PATH).</li>
+<li>Android Studio: <a href="https://developer.android.com/studio">Descarga oficial</a></li>
+</ul>
+<p>No necesitas XAMPP. Este proyecto utiliza MySQL Community; algunas distribuciones de XAMPP incluyen MariaDB, que no es la base solicitada.</p>
+<p>En Android Studio instala Android SDK Platform 35 y Build-Tools 35.0.0 desde SDK Manager. En Device Manager crea un dispositivo virtual, por ejemplo Pixel con Android API 35. Activa virtualización en Windows/BIOS si el emulador la solicita. El proyecto requiere JDK 17 para Gradle y utiliza Gradle 8.11.1 / Android Gradle Plugin 8.9.2. No aceptes actualizar automáticamente las versiones antes de probar esta entrega.</p>
+<h2 id="3-crear-la-base-de-datos-mysql">3. Crear la base de datos MySQL</h2>
+<p>Abre Workbench y conecta con <code>root</code> a <code>127.0.0.1:3306</code>. Usa File → Open SQL Script y abre <code>database/01_create_database.sql</code>.</p>
+<p>Antes de ejecutarlo, reemplaza <code>REEMPLAZAR_CON_TU_CLAVE</code> por una contraseña propia para <code>electricis_app</code>. Para evitar errores al escribir el script, usa al menos 16 caracteres entre letras, números y símbolos que no incluyan comillas simples ni barra invertida. Esta es la contraseña de la base, distinta de la cuenta para entrar a la app.</p>
+<p>Ejecuta el script con el botón del rayo. Debe aparecer el esquema <code>electricis_manager</code> al actualizar Schemas. Las tablas se crearán en el paso 5.</p>
+<p>Si ya habías ejecutado el script, cambiar el texto de CREATE USER IF NOT EXISTS no cambia la contraseña existente. Para cambiarla ejecuta explícitamente, con tu clave real:</p>
+<pre><code class="language-sql">ALTER USER 'electricis_app'@'localhost' IDENTIFIED BY 'TU_NUEVA_CLAVE';
+</code></pre>
+<h2 id="4-instalar-la-api-y-configurar-la-conexion">4. Instalar la API y configurar la conexión</h2>
+<p>En <code>backend</code>, haz doble clic en <code>setup_windows.bat</code>. Espera a que termine. Creará un entorno Python <code>.venv</code>, instalará las dependencias y copiará <code>.env.example</code> a <code>.env</code> si este último no existe.</p>
+<p>Abre <code>backend/.env</code> con Bloc de notas. Debe quedar así, sustituyendo únicamente la contraseña:</p>
+<pre><code class="language-ini">DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=electricis_manager
+DB_USER=electricis_app
+DB_PASSWORD=TU_CLAVE_DE_MYSQL
+</code></pre>
+<p>Si tu contraseña contiene <code>#</code> o espacios, escribe su valor entre comillas dobles en <code>.env</code>. Activa Ver → Mostrar → Extensiones de nombre de archivo en el Explorador. El archivo debe llamarse <code>.env</code>, no <code>.env.txt</code>.</p>
+<p>Esta es la conexión <strong>API → MySQL</strong>. Ningún archivo Android necesita la contraseña de MySQL.</p>
+<h2 id="5-crear-tablas-y-cuentas">5. Crear tablas y cuentas</h2>
+<p>Abre la carpeta <code>backend</code> en el Explorador, escribe <code>cmd</code> en la barra de direcciones y presiona Enter. Se abrirá una terminal en esa carpeta. Ejecuta, uno por uno:</p>
+<pre><code class="language-bat">.venv\Scripts\python.exe manage.py init-db
+.venv\Scripts\python.exe manage.py create-user
+</code></pre>
+<p>El primer comando crea las tablas sin borrar las existentes. El segundo pregunta nombre, correo, rol y contraseña. Crea primero tu cuenta con rol <code>admin</code>. La contraseña debe tener al menos 12 caracteres. Mientras escribes la contraseña no se muestran caracteres: es normal.</p>
+<p>Repite el segundo comando para crear un <code>supervisor</code> y un <code>tecnico</code>. Escribe los roles exactamente en minúsculas y sin tilde. Conserva los correos y las contraseñas: los usarás en la app. No se crean cuentas con contraseñas predeterminadas.</p>
+<p>Opcional, solo para practicar con información ficticia:</p>
+<pre><code class="language-bat">.venv\Scripts\python.exe manage.py demo
+</code></pre>
+<p>Crea un proyecto DEMO con tres tareas si aún no hay proyectos. No es información real de GTR.</p>
+<p>En Workbench verifica:</p>
+<pre><code class="language-sql">USE electricis_manager;
+SHOW TABLES;
+SELECT id, name, email, role FROM users;
+</code></pre>
+<p>Deberás ver users, sessions, projects, tasks, task_history y reports. El archivo <code>02_schema_reference.sql</code> documenta las tablas; no necesitas ejecutarlo si usaste <code>init-db</code>.</p>
+<h2 id="6-encender-y-comprobar-la-api">6. Encender y comprobar la API</h2>
+<p>Haz doble clic en <code>backend/start_windows.bat</code>. Mantén abierta esa ventana. Debe indicar que Uvicorn está ejecutándose en <code>http://127.0.0.1:8000</code>.</p>
+<p>Abre en el navegador de la computadora:</p>
+<ul>
+<li>http://127.0.0.1:8000/health — debe mostrar <code>{"status":"ok","database":"mysql"}</code>.</li>
+<li>http://127.0.0.1:8000/docs — muestra la documentación interactiva de la API.</li>
+</ul>
+<p>Si health no funciona, resuelve ese error antes de abrir Android. Para probar el login en docs, abre POST /auth/login → Try it out e ingresa tu correo y contraseña en el JSON. Copia el campo token de la respuesta; pulsa Authorize e introduce solo ese token. Después podrás probar GET /projects.</p>
+<h2 id="7-abrir-y-ejecutar-android">7. Abrir y ejecutar Android</h2>
+<p>En Android Studio selecciona Open y elige <code>C:\Proyectos\ElectricisManager\android</code>. Espera a que Gradle descargue las dependencias; la primera vez necesita Internet.</p>
+<p>En Settings → Build, Execution, Deployment → Build Tools → Gradle selecciona un Gradle JDK 17. Puedes usar Download JDK para instalarlo si no aparece. El Gradle Wrapper ya está incluido.</p>
+<p>Si pide SDK, selecciona el instalado por Android Studio. <code>local.properties</code> se genera para tu computadora y no se incluye con una ruta ajena. Selecciona el emulador en la barra superior y pulsa Run ▶ sobre la configuración app.</p>
+<p>En la pantalla de acceso, deja esta URL:</p>
+<pre><code class="language-text">http://10.0.2.2:8000/
+</code></pre>
+<p>Es la conexión <strong>Android emulado → API de tu computadora</strong>. No pongas <code>localhost</code> ni <code>127.0.0.1</code> en el emulador: esas direcciones apuntarían al propio dispositivo virtual. Introduce el correo y la contraseña creados con <code>manage.py create-user</code>.</p>
+<p>La URL se guarda localmente con DataStore. El token no se guarda en disco: si Android termina el proceso, tendrás que iniciar sesión de nuevo. La aplicación necesita conexión con la API para leer y guardar información.</p>
+<h2 id="71-alternativa-instalar-el-apk-ya-compilado">7.1. Alternativa: instalar el APK ya compilado</h2>
+<p>El paquete incluye <code>apk/ElectricisManager-0.7.0-debug.apk</code>. Es la misma versión del código fuente, compilada para pruebas. Puedes instalarlo por USB, con el teléfono conectado y autorizado, desde la carpeta principal del proyecto:</p>
+<pre><code class="language-bat">&quot;%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe&quot; install -r apk\ElectricisManager-0.7.0-debug.apk
+</code></pre>
+<p>Este comando se ejecuta en CMD. Si quieres recompilar o modificar la app, sigue el paso 7 de Android Studio. Si después instalas una compilación con otra firma y Android rechaza la actualización, desinstala la app anterior antes de instalar la nueva; perderás la URL guardada, pero no los datos de MySQL. El APK no incluye el servidor ni la base: completa siempre los pasos 2 a 6 y la conexión del paso 8 o 9.</p>
+<h2 id="8-usar-un-telefono-fisico-por-usb">8. Usar un teléfono físico por USB</h2>
+<p>Esta es la alternativa más sencilla para la práctica local:</p>
+<ol>
+<li>En el teléfono activa Opciones de desarrollador y Depuración USB.</li>
+<li>Conéctalo por USB y acepta la huella de la computadora.</li>
+<li>Selecciona ese teléfono en Android Studio y ejecuta la app.</li>
+<li>Abre la terminal de Android Studio y ejecuta:</li>
+</ol>
+<pre><code class="language-bat">&quot;%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe&quot; reverse tcp:8000 tcp:8000
+</code></pre>
+<p>Si la terminal es PowerShell, usa:</p>
+<pre><code class="language-powershell">&amp; &quot;$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe&quot; reverse tcp:8000 tcp:8000
+</code></pre>
+<p>Si instalaste el SDK en otra ubicación, reemplaza la ruta por la que aparece en SDK Manager. Si hay varios dispositivos conectados, desconecta los demás o añade <code>-s SERIAL</code> después de adb.exe.</p>
+<p>En el teléfono cambia la URL de la app a <code>http://127.0.0.1:8000/</code>. El comando reverse permite llegar a la API local a través del cable. Debes repetirlo si se pierde la conexión USB. La ventana de la API debe seguir abierta.</p>
+<h2 id="9-alternativa-telefono-por-wi-fi">9. Alternativa: teléfono por Wi-Fi</h2>
+<p>Usa esta opción solo en una red privada de práctica. Detén la API con Ctrl+C y, desde backend, inicia:</p>
+<pre><code class="language-bat">.venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+</code></pre>
+<p>Ejecuta <code>ipconfig</code> y busca la IPv4 del adaptador Wi-Fi, por ejemplo <code>192.168.1.50</code>. Conecta el teléfono a la misma red y configura la URL <code>http://192.168.1.50:8000/</code>. La IP es solo un ejemplo: usa la de tu computadora.</p>
+<p>Si Windows solicita acceso de red, permite la API solo en redes privadas. No desactives el firewall completo y no abras puertos en el router. MySQL continúa escuchando localmente; el teléfono se comunica únicamente con el puerto 8000 de la API.</p>
+<h2 id="10-recorrido-de-comprobacion">10. Recorrido de comprobación</h2>
+<ol>
+<li>Entra como admin y crea un proyecto con nombre, ubicación, responsable y fechas.</li>
+<li>Abre el proyecto, registra una actividad y asígnala al técnico.</li>
+<li>Coloca una fecha dentro del rango del proyecto y selecciona prioridad.</li>
+<li>Cierra sesión; entra como técnico y abre ese proyecto.</li>
+<li>Cambia la tarea asignada a en proceso y luego completada. No debe poder editar una tarea ajena.</li>
+<li>Abre Historial y comprueba el autor y los cambios.</li>
+<li>Registra un informe con trabajo realizado, incidencias y observaciones.</li>
+<li>Entra como supervisor, actualiza y verifica el informe y el avance.</li>
+<li>Con una tarea total completada debe verse 100 %. Sin tareas se muestra 0 %.</li>
+<li>Finaliza el proyecto; sus actividades quedarán bloqueadas hasta reabrirlo.</li>
+</ol>
+<p>Para comprobar que se guardó en MySQL, ejecuta en Workbench:</p>
+<pre><code class="language-sql">SELECT * FROM projects;
+SELECT * FROM tasks;
+SELECT * FROM reports;
+SELECT * FROM task_history;
+</code></pre>
+<h2 id="11-iniciar-el-proyecto-otro-dia">11. Iniciar el proyecto otro día</h2>
+<p>No reinstales todo ni vuelvas a crear usuarios. Inicia el servicio MySQL si está detenido, abre <code>start_windows.bat</code>, comprueba health y ejecuta Android. Si usas teléfono USB, repite adb reverse. Si usas Wi-Fi, revisa si cambió la IP.</p>
+<p>Para detener el servidor presiona Ctrl+C en su terminal. Los datos permanecen en MySQL. Cerrar Android Studio no borra la base.</p>
+<h2 id="12-problemas-habituales">12. Problemas habituales</h2>
+<table>
+<thead>
+<tr>
+<th>Mensaje o síntoma</th>
+<th>Qué revisar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>py no se reconoce</td>
+<td>Reinstalar Python 3.12 incluyendo Python Launcher; abrir otra terminal.</td>
+</tr>
+<tr>
+<td>Access denied for user</td>
+<td>Clave y usuario de .env; si el usuario ya existía, usar ALTER USER.</td>
+</tr>
+<tr>
+<td>Can't connect to MySQL</td>
+<td>Servicio MySQL iniciado, puerto correcto y DB_HOST=127.0.0.1.</td>
+</tr>
+<tr>
+<td>Unknown database</td>
+<td>Ejecutar primero 01_create_database.sql.</td>
+</tr>
+<tr>
+<td>Table doesn't exist</td>
+<td>Ejecutar manage.py init-db.</td>
+</tr>
+<tr>
+<td>Puerto 8000 ocupado</td>
+<td>Cerrar la API anterior; no abrir varias copias.</td>
+</tr>
+<tr>
+<td>No se pudo conectar desde Android</td>
+<td>Revisar health en PC, URL, emulador o adb reverse.</td>
+</tr>
+<tr>
+<td>Credenciales incorrectas</td>
+<td>Usar cuenta creada con create-user; no la de root ni electricis_app.</td>
+</tr>
+<tr>
+<td>Sesión vencida</td>
+<td>Volver a ingresar; dura hasta ocho horas.</td>
+</tr>
+<tr>
+<td>Error 403</td>
+<td>El rol no permite esa acción o la actividad pertenece a otro técnico.</td>
+</tr>
+<tr>
+<td>Error 409 al finalizar</td>
+<td>Debe haber al menos una actividad y todas deben estar completas.</td>
+</tr>
+<tr>
+<td>Error 422</td>
+<td>Revisar campos, fechas AAAA-MM-DD y rango del proyecto.</td>
+</tr>
+<tr>
+<td>Gradle falla por JDK</td>
+<td>Elegir JDK 17, no Java 8/11.</td>
+</tr>
+<tr>
+<td>SDK Platform 35 no instalado</td>
+<td>Instalarlo desde SDK Manager junto con Build-Tools 35.0.0.</td>
+</tr>
+<tr>
+<td>Gradle no descarga dependencias</td>
+<td>Comprobar Internet/proxy de Android Studio; volver a Sync Project.</td>
+</tr>
+<tr>
+<td>Cleartext HTTP no permitido</td>
+<td>Ejecutar variante debug para práctica. Release requiere HTTPS.</td>
+</tr>
+<tr>
+<td>Windows oculta .env</td>
+<td>Activar extensiones; comprobar que no sea .env.txt.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="13-que-esta-listo-y-que-falta">13. Qué está listo y qué falta</h2>
+<p>La entrega implementa los módulos prioritarios y un seguimiento básico. El “70 %” es una ponderación propuesta del alcance, explicada en <code>docs/ALCANCE_Y_ARQUITECTURA.md</code>; no equivale a una certificación de producción ni a cumplir el 70 % exacto de la rúbrica del docente.</p>
+<p>Faltan mapas, fotos, sincronización offline/Room, exportación de reportes, módulo de materiales/ODS 12, componente Flutter, integración Firebase complementaria y publicación. También faltan pruebas con usuarios reales, respaldo, migraciones y endurecimiento de seguridad para producción. No se incluye eliminación de proyectos ni modificación de informes para conservar las evidencias en esta versión.</p>
+<p>La base principal será MySQL. Firebase no reemplaza MySQL en este proyecto. El HTTP local solo está habilitado para depuración; un despliegue real requiere HTTPS.</p>
+<h2 id="14-referencias-tecnicas-oficiales">14. Referencias técnicas oficiales</h2>
+<p>Consultadas para la configuración de esta entrega:</p>
+<ul>
+<li>MySQL 8.4 en Windows: https://dev.mysql.com/doc/refman/8.4/en/windows-installation.html</li>
+<li>Compatibilidad AGP 8.9 / Gradle / JDK: https://developer.android.com/build/releases/agp-8-9-0-release-notes</li>
+<li>Android Studio: <a href="https://developer.android.com/studio">Descarga oficial</a></li>
+<li>FastAPI: https://fastapi.tiangolo.com/</li>
+</ul>
+<p>Revisa <code>docs/VERIFICACION.md</code> antes de presentar resultados de pruebas como evidencias del proyecto.</p></main></html>
