@@ -1,7 +1,11 @@
-# Electricis Manager — entrega académica 0.7.0
+# Electricis Manager — entrega académica 0.8.0
 
 Aplicación Android nativa para Mantenimiento Ingeniería y Proyectos GTR S.A.C.
 Base central: **MySQL 8.4**. Interfaz: Kotlin + Jetpack Compose. API: Python + FastAPI.
+
+Si ya tienes la versión anterior, sigue [Trabajo en campo y avisos](docs/TRABAJO_EN_CAMPO.md)
+para actualizar la API, crear las nuevas tablas sin borrar registros y ejecutar la app 0.8.0.
+La guía HTML, el APK 0.7.0 y las evidencias de la entrega inicial se conservan como referencia.
 
 1. Abre **GUIA_INSTALACION.html** con doble clic. Explica cada conexión en Windows.
 2. Instala MySQL, Python 3.12 y Android Studio siguiendo la guía.
@@ -21,6 +25,8 @@ conservar la estructura y las dependencias.
 
 ## Alcance
 Login y roles, panel, proyectos, actividades con historial, informes y avance básico.
+La versión 0.8.0 añade inicio en campo con ubicación, checklist por actividad,
+evidencia fotográfica y avisos de vencimiento.
 El 70 % representa un hito propuesto de funcionalidades, no una nota ni certificación.
 Consulta `docs/ALCANCE_Y_ARQUITECTURA.md` para los pendientes.
 Consulta `docs/VERIFICACION.md` para conocer exactamente qué se ejecutó y qué no.

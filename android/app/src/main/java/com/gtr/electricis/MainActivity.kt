@@ -34,7 +34,7 @@ class MainActivity:ComponentActivity() {
     var reportForm by remember { mutableStateOf(false) }
     var editingProject by remember { mutableStateOf<Project?>(null) }
     var editingTask by remember { mutableStateOf<Task?>(null) }
-    BackHandler(vm.selected!=null && !vm.busy) { vm.back() }
+    BackHandler(vm.selected!=null && vm.field==null && !vm.busy) { vm.back() }
     Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal=20.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical=14.dp),horizontalArrangement=Arrangement.SpaceBetween) {
             Column { Text("ELECTRICIS",fontWeight=FontWeight.ExtraBold,style=MaterialTheme.typography.titleLarge,color=MaterialTheme.colorScheme.primary); Text("MANAGER · GTR S.A.C.",style=MaterialTheme.typography.labelSmall) }
@@ -61,6 +61,7 @@ class MainActivity:ComponentActivity() {
                     Text("${d.pending_tasks} tareas pendientes · ${d.completed_tasks} completadas")
                     Text("${d.overdue_tasks} tareas retrasadas",color=MaterialTheme.colorScheme.error)
                 }
+                DeadlinePanel(vm.reminders)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                     Text("Proyectos",style=MaterialTheme.typography.titleLarge)
                     TextButton(onClick={vm.refresh()},enabled=!vm.busy) { Text("Actualizar") }
@@ -98,13 +99,21 @@ class MainActivity:ComponentActivity() {
                         Text(t.title,fontWeight=FontWeight.Bold)
                         Text("${vm.name(t.assignee_id)} · Prioridad ${t.priority}")
                         Text("Fecha: ${t.due_date} · ${t.status.replace('_',' ')}")
-                        if(t.status!="completada" && t.due_date<LocalDate.now().toString()) Text("Retrasada",color=MaterialTheme.colorScheme.error)
-                        if(p.status!="finalizado" && (vm.canManage || vm.user!!.id==t.assignee_id)) {
+                        if(t.status!="completada" && p.status=="activo") {
+                            when(deadlineState(t.due_date,limaToday())) {
+                                "retrasada" -> Text("Retrasada",color=MaterialTheme.colorScheme.error)
+                                "por_vencer" -> Text("Por vencer",color=MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        if(!t.field_required && p.status!="finalizado" && (vm.canManage || vm.user!!.id==t.assignee_id)) {
                             Choice("Estado",t.status,listOf("pendiente","en_proceso","completada"),!vm.busy) { vm.status(t,it) }
                         }
                         Row {
                             if(vm.canManage && p.status!="finalizado") TextButton(onClick={editingTask=t; taskForm=true},enabled=!vm.busy) { Text("Editar") }
                             TextButton(onClick={vm.history(t)},enabled=!vm.busy) { Text("Historial") }
+                        }
+                        if(vm.canManage || vm.user!!.id==t.assignee_id) {
+                            OutlinedButton(onClick={vm.openField(t)},enabled=!vm.busy) { Text("Trabajo en campo") }
                         }
                     }
                 }
@@ -124,6 +133,9 @@ class MainActivity:ComponentActivity() {
     if(vm.user!=null && projectForm) ProjectForm(vm,editingProject) { projectForm=false }
     if(vm.user!=null && taskForm) TaskForm(vm,editingTask) { taskForm=false }
     if(vm.user!=null && reportForm) ReportForm(vm) { reportForm=false }
+    val field=vm.field
+    val fieldTask=vm.fieldTask
+    if(vm.user!=null && field!=null && fieldTask!=null) FieldWorkDialog(vm,fieldTask,field)
     vm.history?.let { entries -> AlertDialog(onDismissRequest={vm.history=null},title={Text("Historial de actividad")},text={Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(entries.isEmpty()) Text("Sin cambios registrados.")
         entries.forEach { Text("${it.created_at}\n${vm.name(it.user_id)}\n${it.action}") }
