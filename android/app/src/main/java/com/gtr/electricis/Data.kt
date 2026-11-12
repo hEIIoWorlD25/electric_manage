@@ -15,10 +15,10 @@ import okhttp3.ResponseBody
 data class User(val id:Int, val name:String, val email:String, val role:String)
 data class LoginRequest(val email:String,val password:String)
 data class LoginResponse(val token:String,val user:User)
-data class Project(val id:Int,val name:String,val description:String,val location:String,val manager_id:Int,val start_date:String,val end_date:String,val status:String,val progress:Int,val total_tasks:Int,val completed_tasks:Int)
-data class ProjectBody(val name:String,val description:String,val location:String,val manager_id:Int,val start_date:String,val end_date:String,val status:String)
-data class Task(val id:Int,val project_id:Int,val title:String,val assignee_id:Int,val due_date:String,val priority:String,val status:String,val field_required:Boolean=false)
-data class TaskBody(val title:String,val assignee_id:Int,val due_date:String,val priority:String)
+data class Project(val id:Int,val name:String,val description:String,val location:String,val manager_id:Int,val start_date:String,val end_date:String,val status:String,val progress:Int,val total_tasks:Int,val completed_tasks:Int,val end_time:String="23:59")
+data class ProjectBody(val name:String,val description:String,val location:String,val manager_id:Int,val start_date:String,val end_date:String,val status:String,val end_time:String="23:59")
+data class Task(val id:Int,val project_id:Int,val title:String,val assignee_id:Int,val due_date:String,val priority:String,val status:String,val field_required:Boolean=false,val due_time:String="23:59")
+data class TaskBody(val title:String,val assignee_id:Int,val due_date:String,val priority:String,val due_time:String="23:59")
 data class StatusBody(val status:String)
 data class Report(val id:Int,val project_id:Int,val author_id:Int,val work_date:String,val progress:String,val incidents:String,val observations:String,val created_at:String)
 data class ReportBody(val work_date:String,val progress:String,val incidents:String,val observations:String)
@@ -33,8 +33,18 @@ data class FieldDetails(
     val started_by:Int?,val started_at:String?,val finished_at:String?,
     val latitude:Double?,val longitude:Double?,val accuracy_m:Double?,val has_photo:Boolean
 )
-data class ReminderItem(val id:Int,val title:String,val due_date:String)
+data class ReminderItem(val id:Int,val title:String,val due_date:String,val deadline_at:String?=null,val kind:String="task")
+data class NewUser(val name:String,val email:String,val password:String,val role:String)
+data class Mail(val id:Int,val sender_id:Int,val recipient_id:Int,val subject:String,val body:String,val created_at:String,val read_at:String?)
+data class MailBody(val recipient_id:Int,val subject:String,val body:String)
 interface Api {
+    @POST("users") suspend fun createUser(@Header("Authorization") auth:String,@Body body:NewUser):User
+    @GET("messages") suspend fun messages(@Header("Authorization") auth:String):List<Mail>
+    @GET("messages/recipients") suspend fun recipients(@Header("Authorization") auth:String):List<User>
+    @POST("messages") suspend fun send(@Header("Authorization") auth:String,@Body body:MailBody):Mail
+    @POST("messages/{id}/read") suspend fun read(@Header("Authorization") auth:String,@Path("id") id:Int):Map<String,String>
+    @GET("projects/{id}/print") suspend fun printProject(@Header("Authorization") auth:String,@Path("id") id:Int):ResponseBody
+
     @POST("auth/login") suspend fun login(@Body body:LoginRequest):LoginResponse
     @POST("auth/logout") suspend fun logout(@Header("Authorization") auth:String):Map<String,String>
     @GET("users") suspend fun users(@Header("Authorization") auth:String):List<User>
@@ -76,6 +86,12 @@ class Repository(private val context:Context) {
     private fun auth()="Bearer $token"
     fun clear() { token="" }
     suspend fun logout() { api.logout(auth()); clear() }
+    suspend fun createUser(body:NewUser)=api.createUser(auth(),body)
+    suspend fun messages()=api.messages(auth())
+    suspend fun recipients()=api.recipients(auth())
+    suspend fun send(body:MailBody)=api.send(auth(),body)
+    suspend fun read(id:Int)=api.read(auth(),id)
+    suspend fun printProject(id:Int)=api.printProject(auth(),id).use { it.string() }
     suspend fun users()=api.users(auth())
     suspend fun dashboard()=api.dashboard(auth())
     suspend fun projects()=api.projects(auth())

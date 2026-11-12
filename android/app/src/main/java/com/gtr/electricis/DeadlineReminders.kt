@@ -22,6 +22,14 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
+fun deadlineAt(day:String,hour:String)="${day}T${hour}:00-05:00"
+fun minutesLeft(iso:String,now:java.time.Instant=java.time.Instant.now()):Long=java.time.Duration.between(now,java.time.OffsetDateTime.parse(iso).toInstant()).seconds.let { if(it>0) (it+59)/60 else Math.floorDiv(it,60) }
+fun reminderState(item:ReminderItem,now:java.time.Instant=java.time.Instant.now()):String? {
+    val iso=item.deadline_at ?: deadlineAt(item.due_date,"23:59")
+    val minutes=runCatching { minutesLeft(iso,now) }.getOrNull() ?: return null
+    return when { minutes<=0 -> "retrasada"; minutes<=180 -> "por_vencer"; else -> null }
+}
+
 private const val CHANNEL = "electricis_deadlines"
 private const val WORK = "electricis_deadline_check"
 private const val TAG = "deadline"
@@ -65,13 +73,13 @@ object DeadlineReminders {
         val p=prefs(context)
         val manager=NotificationManagerCompat.from(context)
         val sameAccount=p.getString("account",null)==account
-        val dates=latest.associate { it.id to it.due_date }
-        items(context).filter { !sameAccount || dates[it.id]!=it.due_date }.forEach { manager.cancel(TAG,it.id) }
+        val dates=latest.associate { it.id to (it.deadline_at ?: it.due_date) }
+        items(context).filter { !sameAccount || dates[it.id]!=(it.deadline_at ?: it.due_date) }.forEach { manager.cancel(TAG,it.id) }
         val editor=p.edit().putString("account",account).putString("items",gson.toJson(latest))
         if(!sameAccount) editor.remove("posted")
         editor.apply()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK,ExistingPeriodicWorkPolicy.KEEP,PeriodicWorkRequestBuilder<DeadlineWorker>(30,TimeUnit.MINUTES).build()
+            WORK,ExistingPeriodicWorkPolicy.KEEP,PeriodicWorkRequestBuilder<DeadlineWorker>(15,TimeUnit.MINUTES).build()
         )
         check(context)
     }
@@ -102,15 +110,17 @@ object DeadlineReminders {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         for(item in items(context)) {
-            val state=deadlineState(item.due_date,today)
+            val state=reminderState(item)
             if(state==null) {
                 manager.cancel(TAG,item.id)
                 continue
             }
-            val key="${item.id}:${item.due_date}:$state"
+            val key="${item.id}:${item.deadline_at ?: item.due_date}:$state"
             if(key !in previous) {
-                val title=if(state=="retrasada") "Actividad retrasada" else "Actividad por vencer"
-                val description="${item.title} · Fecha límite: ${item.due_date}"
+                val noun=if(item.kind=="project") "Proyecto" else "Actividad"
+                val title=if(state=="retrasada") "$noun fuera de plazo" else "$noun por finalizar"
+                val left=minutesLeft(item.deadline_at ?: deadlineAt(item.due_date,"23:59"))
+                val description="${item.title} · ${if(left>0) "Faltan $left minutos" else "Plazo vencido"}"
                 val notice=NotificationCompat.Builder(context,CHANNEL)
                     .setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setContentTitle(title).setContentText(description)

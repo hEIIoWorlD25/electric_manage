@@ -176,12 +176,12 @@ fun DeadlinePanel(items:List<ReminderItem>) {
         if(enabled) DeadlineReminders.check(context)
     }
     val today=limaToday()
-    val soon=items.count { deadlineState(it.due_date,today)=="por_vencer" }
-    val late=items.count { deadlineState(it.due_date,today)=="retrasada" }
+    val soon=items.count { reminderState(it)=="por_vencer" }
+    val late=items.count { reminderState(it)=="retrasada" }
     Panel {
-        Text("Avisos de actividades",fontWeight=FontWeight.Bold)
+        Text("Avisos de entrega",fontWeight=FontWeight.Bold)
         Text("$soon por vencer · $late retrasadas")
-        Text("Por vencer: hoy o mañana. Actualiza para revisar las fechas más recientes.",
+        Text("Aviso desde 3 horas antes. Revisión aproximada cada 15 minutos según Android. Actualiza para sincronizar cambios.",
             style=MaterialTheme.typography.bodySmall)
         if(!enabled) {
             OutlinedButton(onClick={

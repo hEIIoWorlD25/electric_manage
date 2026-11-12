@@ -61,6 +61,8 @@ def test_permissions_progress_history_report(setup):
     assert upload(c,t,tid).status_code==200
     assert c.post(f'/tasks/{tid}/field/finish',headers=t).status_code==200
     assert c.get('/projects',headers=a).json()[0]['progress']==100
+    assert 'data:image/jpeg;base64,' in c.get(f'/projects/{pid}/print',headers=a).text
+    assert 'data:image/jpeg;base64,' not in c.get(f'/projects/{pid}/print',headers=other_login(c)).text
     assert len(c.get(f'/tasks/{tid}/history',headers=a).json())==3
     report=dict(work_date='2025-01-01',progress='Tablero instalado',incidents='',observations='')
     assert c.post(f'/projects/{pid}/reports',headers=t,json=report).status_code==201
@@ -151,13 +153,55 @@ def test_reminders_only_active_and_visible_assignments(setup):
     add(paused)
     assert c.patch(f'/tasks/{done}/status',headers=a,json={'status':'completada'}).status_code==200
     assert [x['id'] for x in c.get('/reminders',headers=t).json()]==[assigned]
-    assert [x['id'] for x in c.get('/reminders',headers=a).json()]==[assigned,others]
+    assert [x['id'] for x in c.get('/reminders',headers=a).json()]==[assigned,others,-pid]
 
 def test_create_all_adds_field_tables_preserving_existing_data(setup):
     c,a,_=setup; pid,_=project(c,a)
-    for name in ('task_field_photos','task_field_entries','task_field_plans'):
+    for name in ('task_field_photos','task_field_entries','task_field_plans','messages','deadlines'):
         Base.metadata.tables[name].drop(engine)
     Base.metadata.create_all(engine)
     Base.metadata.create_all(engine)
-    assert {'task_field_plans','task_field_entries','task_field_photos'} <= set(inspect(engine).get_table_names())
+    assert {'task_field_plans','task_field_entries','task_field_photos','messages','deadlines'} <= set(inspect(engine).get_table_names())
     assert c.get('/projects',headers=a).json()[0]['id']==pid
+
+def test_roles_mail_deadlines_and_print(setup):
+    c,a,t=setup
+    new=dict(name='Supervisor',email='supervisor@test.pe',password='ClaveSegura123!',role='supervisor')
+    assert c.post('/users',headers=t,json=new).status_code==403
+    created=c.post('/users',headers=a,json=new)
+    assert created.status_code==201
+    uid=created.json()['id']
+    assert 'password_hash' not in created.json()
+    assert c.post('/users',headers=a,json=new).status_code==409
+    sup={'Authorization':'Bearer '+c.post('/auth/login',json={'email':new['email'],'password':new['password']}).json()['token']}
+    pid,p=project(c,a)
+    assert c.post('/users',headers=sup,json=new).status_code==403
+    assert c.post('/projects',headers=sup,json=p).status_code==403
+    assert c.put(f'/projects/{pid}',headers=sup,json=p).status_code==403
+    p['end_time']='18:00'
+    assert c.put(f'/projects/{pid}',headers=a,json=p).status_code==200
+    task=dict(title='Actividad con hora',assignee_id=2,due_date=p['end_date'],due_time='18:01',priority='alta')
+    assert c.post(f'/projects/{pid}/tasks',headers=sup,json=task).status_code==422
+    task['due_time']='17:00'
+    assert c.post(f'/projects/{pid}/tasks',headers=sup,json=task).status_code==201
+    assert c.get(f'/projects/{pid}/tasks',headers=a).json()[0]['due_time']=='17:00'
+    reminders=c.get('/reminders',headers=sup).json()
+    assert any(x['kind']=='project' and x['deadline_at'].endswith('18:00:00-05:00') for x in reminders)
+    assert all(x['kind']=='task' for x in c.get('/reminders',headers=t).json())
+    msg=dict(recipient_id=1,subject='Consulta',body='Necesito una cuenta nueva')
+    assert c.post('/messages',headers=t,json=msg).status_code==403
+    assert c.post('/messages',headers=sup,json=msg).status_code==201
+    msg['recipient_id']=uid
+    mail=c.post('/messages',headers=t,json=msg)
+    assert mail.status_code==201
+    mid=mail.json()['id']
+    assert c.post(f'/messages/{mid}/read',headers=a).status_code==403
+    assert c.post(f'/messages/{mid}/read',headers=sup).status_code==200
+    assert all(x['id']!=mid for x in c.get('/messages',headers=a).json())
+    assert all(x['role']=='supervisor' for x in c.get('/messages/recipients',headers=t).json())
+    p['description']='<script>alert(1)</script>'
+    assert c.put(f'/projects/{pid}',headers=a,json=p).status_code==200
+    printed=c.get(f'/projects/{pid}/print',headers=sup)
+    assert printed.status_code==200
+    assert '<script>' not in printed.text and '&lt;script&gt;' in printed.text
+    assert 'Actividad con hora' in printed.text and 'Informes de campo' in printed.text

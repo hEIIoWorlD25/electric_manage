@@ -1,3 +1,7 @@
+# Electricis Manager 0.9.0
+
+Consulta [roles, mensajería, horarios e impresión](docs/ROLES_Y_MENSAJERIA.md) para actualizar y probar esta versión.
+
 # Electricis Manager — entrega académica 0.8.0
 
 Aplicación Android nativa para Mantenimiento Ingeniería y Proyectos GTR S.A.C.
