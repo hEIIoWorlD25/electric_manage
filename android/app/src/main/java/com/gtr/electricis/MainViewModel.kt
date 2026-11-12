@@ -33,6 +33,14 @@ class MainViewModel(application:Application):AndroidViewModel(application) {
     var fieldPhoto by mutableStateOf<Bitmap?>(null); private set
     var reminders by mutableStateOf(emptyList<ReminderItem>()); private set
     init { viewModelScope.launch { url=repo.savedUrl() } }
+    var mail by mutableStateOf(emptyList<Mail>()); private set
+    var recipients by mutableStateOf(emptyList<User>()); private set
+    var printHtml by mutableStateOf<String?>(null)
+    val isAdmin get()=user?.role=="admin"
+    fun createUser(body:NewUser,done:()->Unit)=run { repo.createUser(body); done(); load() }
+    fun send(body:MailBody,done:()->Unit)=run { repo.send(body); done(); load() }
+    fun readMail(id:Int)=run { repo.read(id); mail=repo.messages() }
+    fun printProject()=run { printHtml=repo.printProject(selected!!.id) }
     val canManage get()=user?.role in listOf("admin","supervisor")
     private fun run(action:suspend ()->Unit) {
         if(busy) return
@@ -54,6 +62,7 @@ class MainViewModel(application:Application):AndroidViewModel(application) {
         }
     }
     private suspend fun load() {
+        mail=repo.messages(); recipients=repo.recipients()
         users=repo.users(); projects=repo.projects(); dashboard=repo.dashboard()
         selected?.id?.let { id -> selected=projects.find { it.id==id }; tasks=repo.tasks(id); reports=repo.reports(id) }
         val account=user ?: return
@@ -69,7 +78,7 @@ class MainViewModel(application:Application):AndroidViewModel(application) {
     private fun clearSession() {
         DeadlineReminders.clear(getApplication())
         user=null; selected=null; projects=emptyList(); tasks=emptyList(); reports=emptyList()
-        reminders=emptyList(); history=null; closeField()
+        reminders=emptyList(); mail=emptyList(); recipients=emptyList(); printHtml=null; history=null; closeField()
     }
     fun logout()=run { repo.logout(); clearSession() }
     fun open(project:Project)=run {

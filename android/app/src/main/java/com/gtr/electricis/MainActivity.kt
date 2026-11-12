@@ -29,6 +29,7 @@ class MainActivity:ComponentActivity() {
     }
 }
 @Composable fun Electricis(vm:MainViewModel=viewModel()) {
+    var tab by remember(vm.user?.id) { mutableStateOf("Proyectos") }
     var projectForm by remember { mutableStateOf(false) }
     var taskForm by remember { mutableStateOf(false) }
     var reportForm by remember { mutableStateOf(false) }
@@ -50,7 +51,18 @@ class MainActivity:ComponentActivity() {
         if(vm.user==null) LoginScreen(vm)
         else Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text("${vm.user!!.name} · ${vm.user!!.role}",style=MaterialTheme.typography.labelLarge)
-            if(vm.selected==null) {
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected=tab=="Proyectos",onClick={tab="Proyectos"},label={Text("Proyectos")})
+                FilterChip(selected=tab=="Bandeja",onClick={tab="Bandeja"},label={Text("Bandeja (${vm.mail.count { it.recipient_id==vm.user!!.id && it.read_at==null }})")})
+                if(vm.isAdmin) FilterChip(selected=tab=="Usuarios",onClick={tab="Usuarios"},label={Text("Usuarios")})
+            }
+            if(tab=="Bandeja") MailScreen(vm)
+            else if(tab=="Usuarios" && vm.isAdmin) UsersScreen(vm)
+            else if(vm.selected==null) {
+                Panel {
+                    Text(when(vm.user!!.role) { "admin"->"Control de proyectos y usuarios"; "supervisor"->"Supervisión del trabajo en campo"; else->"Tu jornada de trabajo" },fontWeight=FontWeight.Bold)
+                    Text(when(vm.user!!.role) { "admin"->"Organiza proyectos, crea cuentas y atiende solicitudes en la bandeja."; "supervisor"->"Asigna actividades, revisa evidencias y controla los plazos de entrega."; else->"Registra tu inicio, completa los pasos y comparte la evidencia con tu supervisor." })
+                }
                 Text("Vista general",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
                 val d=vm.dashboard
                 Panel {
@@ -66,7 +78,7 @@ class MainActivity:ComponentActivity() {
                     Text("Proyectos",style=MaterialTheme.typography.titleLarge)
                     TextButton(onClick={vm.refresh()},enabled=!vm.busy) { Text("Actualizar") }
                 }
-                if(vm.canManage) Button(onClick={editingProject=null; projectForm=true},enabled=!vm.busy) { Text("+ Nuevo proyecto") }
+                if(vm.isAdmin) Button(onClick={editingProject=null; projectForm=true},enabled=!vm.busy) { Text("+ Nuevo proyecto") }
                 if(vm.projects.isEmpty()) Text("Aún no hay proyectos registrados.")
                 vm.projects.forEach { p ->
                     Card(onClick={if(!vm.busy) vm.open(p)},modifier=Modifier.fillMaxWidth()) {
@@ -76,7 +88,8 @@ class MainActivity:ComponentActivity() {
                             Text(p.location); Text("Responsable: ${vm.name(p.manager_id)}")
                             LinearProgressIndicator(progress={p.progress/100f},modifier=Modifier.fillMaxWidth())
                             Text("${p.progress}% · ${p.completed_tasks}/${p.total_tasks} actividades")
-                            Text("Entrega: ${p.end_date}",style=MaterialTheme.typography.bodySmall)
+                            Text("Entrega: ${p.end_date} ${p.end_time} · Perú",style=MaterialTheme.typography.bodySmall)
+                            if(p.status=="activo") Countdown(deadlineAt(p.end_date,p.end_time))
                         }
                     }
                 }
@@ -86,10 +99,12 @@ class MainActivity:ComponentActivity() {
                 Text(p.name,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold)
                 Panel {
                     Text(p.description); Text(p.location)
-                    Text("${p.start_date} → ${p.end_date}")
+                    Text("${p.start_date} → ${p.end_date} ${p.end_time} · Perú")
+                    if(p.status=="activo") Countdown(deadlineAt(p.end_date,p.end_time))
+                    OutlinedButton(onClick={vm.printProject()},enabled=!vm.busy) { Text("Imprimir / Guardar PDF") }
                     Text("Responsable: ${vm.name(p.manager_id)}")
                     Text("${p.status} · Avance ${p.progress}%")
-                    if(vm.canManage) TextButton(onClick={editingProject=p; projectForm=true},enabled=!vm.busy) { Text("Editar proyecto") }
+                    if(vm.isAdmin) TextButton(onClick={editingProject=p; projectForm=true},enabled=!vm.busy) { Text("Editar proyecto") }
                 }
                 Text("Actividades",style=MaterialTheme.typography.titleLarge)
                 if(vm.canManage && p.status!="finalizado") Button(onClick={editingTask=null; taskForm=true},enabled=!vm.busy) { Text("+ Nueva actividad") }
@@ -98,12 +113,9 @@ class MainActivity:ComponentActivity() {
                     Panel {
                         Text(t.title,fontWeight=FontWeight.Bold)
                         Text("${vm.name(t.assignee_id)} · Prioridad ${t.priority}")
-                        Text("Fecha: ${t.due_date} · ${t.status.replace('_',' ')}")
+                        Text("Fecha: ${t.due_date} ${t.due_time} · ${t.status.replace('_',' ')}")
                         if(t.status!="completada" && p.status=="activo") {
-                            when(deadlineState(t.due_date,limaToday())) {
-                                "retrasada" -> Text("Retrasada",color=MaterialTheme.colorScheme.error)
-                                "por_vencer" -> Text("Por vencer",color=MaterialTheme.colorScheme.primary)
-                            }
+                            Countdown(deadlineAt(t.due_date,t.due_time))
                         }
                         if(!t.field_required && p.status!="finalizado" && (vm.canManage || vm.user!!.id==t.assignee_id)) {
                             Choice("Estado",t.status,listOf("pendiente","en_proceso","completada"),!vm.busy) { vm.status(t,it) }
@@ -130,6 +142,7 @@ class MainActivity:ComponentActivity() {
             Spacer(Modifier.height(24.dp))
         }
     }
+    vm.printHtml?.let { PrintPreview(it) { vm.printHtml=null } }
     if(vm.user!=null && projectForm) ProjectForm(vm,editingProject) { projectForm=false }
     if(vm.user!=null && taskForm) TaskForm(vm,editingTask) { taskForm=false }
     if(vm.user!=null && reportForm) ReportForm(vm) { reportForm=false }
@@ -184,11 +197,13 @@ private fun validDate(s:String)=runCatching { LocalDate.parse(s) }.isSuccess
     var name by remember { mutableStateOf(p?.name ?: "") }; var description by remember { mutableStateOf(p?.description ?: "") }
     var location by remember { mutableStateOf(p?.location ?: "") }; var owner by remember { mutableIntStateOf(p?.manager_id ?: vm.user!!.id) }
     var start by remember { mutableStateOf(p?.start_date ?: LocalDate.now().toString()) }; var end by remember { mutableStateOf(p?.end_date ?: LocalDate.now().plusDays(30).toString()) }
+    var hour by remember { mutableStateOf(p?.end_time ?: "18:00") }
     var status by remember { mutableStateOf(p?.status ?: "activo") }
-    FormDialog(if(p==null) "Nuevo proyecto" else "Editar proyecto",vm.busy,name.trim().length>=3 && location.trim().length>=2 && validDate(start) && validDate(end) && start<=end,vm.error,close,{vm.saveProject(p?.id,ProjectBody(name,description,location,owner,start,end,status),close)}) {
+    FormDialog(if(p==null) "Nuevo proyecto" else "Editar proyecto",vm.busy,name.trim().length>=3 && location.trim().length>=2 && validDate(start) && validDate(end) && start<=end && validTime(hour),vm.error,close,{vm.saveProject(p?.id,ProjectBody(name,description,location,owner,start,end,status,hour),close)}) {
         Field("Nombre",name) {name=it}; Field("Descripción",description,true) {description=it}; Field("Ubicación",location) {location=it}
         UserChoice("Responsable",owner,vm.users.filter { it.role!="tecnico" }) {owner=it}
         Field("Inicio (AAAA-MM-DD)",start) {start=it}; Field("Fin (AAAA-MM-DD)",end) {end=it}
+        TimeField("Hora de entrega (Perú)",hour) {hour=it}
         Choice("Estado",status,if(p==null) listOf("activo","pausado") else listOf("activo","pausado","finalizado")) {status=it}
         Text("Para finalizar, todas las actividades deben estar completadas.")
     }
@@ -196,9 +211,11 @@ private fun validDate(s:String)=runCatching { LocalDate.parse(s) }.isSuccess
 @Composable fun TaskForm(vm:MainViewModel,t:Task?,close:()->Unit) {
     var title by remember { mutableStateOf(t?.title ?: "") }; var owner by remember { mutableIntStateOf(t?.assignee_id ?: vm.user!!.id) }
     var due by remember { mutableStateOf(t?.due_date ?: vm.selected!!.end_date) }; var priority by remember { mutableStateOf(t?.priority ?: "media") }
-    FormDialog(if(t==null) "Nueva actividad" else "Editar actividad",vm.busy,title.trim().length>=3 && validDate(due),vm.error,close,{vm.saveTask(t?.id,TaskBody(title,owner,due,priority),close)}) {
+    var hour by remember { mutableStateOf(t?.due_time ?: vm.selected!!.end_time) }
+    FormDialog(if(t==null) "Nueva actividad" else "Editar actividad",vm.busy,title.trim().length>=3 && validDate(due) && validTime(hour),vm.error,close,{vm.saveTask(t?.id,TaskBody(title,owner,due,priority,hour),close)}) {
         Field("Actividad",title) {title=it}; UserChoice("Responsable",owner,vm.users) {owner=it}
         Field("Fecha límite (AAAA-MM-DD)",due) {due=it}; Choice("Prioridad",priority,listOf("baja","media","alta")) {priority=it}
+        TimeField("Hora límite (Perú)",hour) {hour=it}
         Text("La fecha debe estar entre ${vm.selected!!.start_date} y ${vm.selected!!.end_date}.")
     }
 }
